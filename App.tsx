@@ -22,7 +22,11 @@ import {
   Minus,
   Sparkles,
   TrendingDown,
-  Activity
+  Activity,
+  BrainCircuit,
+  Loader2,
+  Zap,
+  Quote
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -39,6 +43,7 @@ import {
   AreaChart,
   Area
 } from 'recharts';
+import { GoogleGenAI } from "@google/genai";
 import { PHASES, MACROS, MEALS, USER_PROFILE, CHART_DATA, STRENGTH_PROGRESS } from './data';
 import { Exercise, Phase, DayWorkout, StrengthRecord, LogEntry, HistoricalEntry } from './types';
 
@@ -228,7 +233,6 @@ const HistoryModal: React.FC<{
   );
 };
 
-// Interactive Stepper Component for Logs
 const StepperInput = ({ value, onChange, placeholder, step = 1, unit = "" }: { 
   value: string, 
   onChange: (val: string) => void, 
@@ -285,6 +289,10 @@ const App: React.FC = () => {
   const [viewingHistory, setViewingHistory] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [showSaveFeedback, setShowSaveFeedback] = useState(false);
+  
+  // IA State
+  const [isAnalysing, setIsAnalysing] = useState(false);
+  const [aiInsight, setAiInsight] = useState<string | null>(null);
 
   // Load logs and history from LocalStorage on mount
   useEffect(() => {
@@ -322,10 +330,8 @@ const App: React.FC = () => {
     if (isSaving) return;
     setIsSaving(true);
     
-    // Save current "status quo" for fields
     localStorage.setItem('workout_logs_12s', JSON.stringify(logs));
     
-    // Also append to history for each exercise that has data
     const newHistory = { ...historyLogs };
     const now = new Date();
     const dateStr = now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + 
@@ -335,23 +341,14 @@ const App: React.FC = () => {
       const logEntry = entry as LogEntry;
       if (logEntry.load || logEntry.reps || logEntry.sets) {
         if (!newHistory[name]) newHistory[name] = [];
-        
-        // Push only if significantly different or if last entry is old
-        newHistory[name].push({
-          ...logEntry,
-          date: dateStr
-        });
-        
-        if (newHistory[name].length > 20) {
-          newHistory[name].shift();
-        }
+        newHistory[name].push({ ...logEntry, date: dateStr });
+        if (newHistory[name].length > 20) newHistory[name].shift();
       }
     });
 
     localStorage.setItem('workout_history_12s', JSON.stringify(newHistory));
     setHistoryLogs(newHistory);
 
-    // Visual feedback delay
     setTimeout(() => {
       setIsSaving(false);
       setShowSaveFeedback(true);
@@ -359,9 +356,43 @@ const App: React.FC = () => {
     }, 1200);
   };
 
+  const generateAIInsights = async () => {
+    if (isAnalysing) return;
+    setIsAnalysing(true);
+    setAiInsight(null);
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const prompt = `
+        Aja como um treinador pessoal de elite e nutricionista especializado em naturais.
+        Analise o perfil e progresso do usuário:
+        Perfil: Homem, 29 anos, 185cm, 119kg. Meta: 107kg em 12 semanas.
+        Estado Atual: Focado em redução de gordura e construção de base muscular.
+        Dados de Treino Atuais: ${JSON.stringify(logs)}
+        Histórico de Cargas: ${JSON.stringify(historyLogs)}
+
+        Forneça 3 insights curtos e poderosos (max 2 frases cada) sobre o que ele deve focar agora, 
+        como ajustar as cargas ou a dieta, e uma palavra de motivação. 
+        Seja direto e use um tom encorajador mas profissional. Use português do Brasil.
+        Não use markdown complexo, apenas parágrafos curtos.
+      `;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: prompt,
+      });
+
+      setAiInsight(response.text);
+    } catch (error) {
+      console.error("Erro IA:", error);
+      setAiInsight("Ops, meu sistema de análise está sobrecarregado. Continue focado no plano, a consistência é o segredo!");
+    } finally {
+      setIsAnalysing(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 pb-24 selection:bg-emerald-500/30 overflow-x-hidden">
-      {/* Toast Notification */}
       {showSaveFeedback && (
         <div className="fixed top-20 right-4 z-[110] animate-in slide-in-from-right fade-in duration-300">
           <div className="bg-emerald-500 text-slate-950 px-6 py-3 rounded-2xl font-black text-sm flex items-center gap-3 shadow-2xl shadow-emerald-500/20">
@@ -372,7 +403,6 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* History Modal Overlay */}
       {viewingHistory && (
         <HistoryModal 
           exerciseName={viewingHistory}
@@ -381,7 +411,6 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* Header */}
       <header className="bg-slate-900/50 backdrop-blur-md border-b border-slate-800 sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -408,6 +437,63 @@ const App: React.FC = () => {
         {/* DASHBOARD */}
         {activeTab === 'dashboard' && (
           <div className="space-y-8 animate-in fade-in duration-500">
+            {/* IA TRAINER CARD */}
+            <div className="bg-gradient-to-br from-indigo-600 to-violet-800 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden group">
+               <div className="absolute top-0 right-0 p-12 opacity-10 group-hover:rotate-12 group-hover:scale-110 transition-all duration-700">
+                 <BrainCircuit className="w-48 h-48 text-white" />
+               </div>
+               
+               <div className="relative z-10">
+                 <div className="flex items-center gap-3 mb-4">
+                   <div className="bg-white/20 p-2 rounded-xl backdrop-blur-md">
+                     <BrainCircuit className="w-6 h-6 text-white" />
+                   </div>
+                   <h2 className="text-xl font-black text-white uppercase tracking-wider">Treinador IA Personalizado</h2>
+                 </div>
+                 
+                 <p className="text-indigo-100 text-sm leading-relaxed max-w-xl mb-8">
+                    Análise em tempo real do seu perfil de 119kg e histórico de cargas. Receba ajustes estratégicos para maximizar a queima de gordura e preservação muscular.
+                 </p>
+
+                 <div className="flex flex-col sm:flex-row items-start gap-4">
+                   <button 
+                     onClick={generateAIInsights}
+                     disabled={isAnalysing}
+                     className={`flex items-center gap-3 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl active:scale-95 ${
+                       isAnalysing ? 'bg-indigo-400 text-indigo-900 cursor-not-allowed' : 'bg-white text-indigo-900 hover:bg-emerald-50 hover:text-emerald-600'
+                     }`}
+                   >
+                     {isAnalysing ? (
+                       <Loader2 className="w-4 h-4 animate-spin" />
+                     ) : (
+                       <Zap className="w-4 h-4 fill-current" />
+                     )}
+                     {isAnalysing ? 'Analisando seu Progresso...' : 'Analisar meu Progresso'}
+                   </button>
+                   
+                   {aiInsight && (
+                     <button 
+                       onClick={() => setAiInsight(null)}
+                       className="px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest text-white/60 hover:text-white transition-colors"
+                     >
+                       Limpar Análise
+                     </button>
+                   )}
+                 </div>
+
+                 {aiInsight && (
+                   <div className="mt-8 p-6 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl animate-in slide-in-from-top-4 duration-500">
+                      <div className="flex gap-4">
+                        <Quote className="w-8 h-8 text-white/30 shrink-0" />
+                        <div className="text-white text-sm leading-relaxed font-medium space-y-4 whitespace-pre-line">
+                           {aiInsight}
+                        </div>
+                      </div>
+                   </div>
+                 )}
+               </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard icon={Heart} title="FC Máxima" value={`${USER_PROFILE.maxHR} bpm`} subtext="Zona Alvo: 115-134 bpm" color="bg-rose-500" />
               <StatCard icon={Target} title="Déficit Diário" value="500-700 kcal" subtext="Meta de perda: 1kg/semana" color="bg-amber-500" />
@@ -441,55 +527,6 @@ const App: React.FC = () => {
                   <Area yAxisId="right" type="monotone" dataKey="bf" name="Gordura (%)" stroke="#3b82f6" strokeWidth={4} fill="url(#bfGrad)" dot={{ r: 6, fill: '#3b82f6' }} />
                 </AreaChart>
               </ResponsiveContainer>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl">
-                <h3 className="text-white font-black text-sm uppercase tracking-widest mb-6 flex items-center gap-3">
-                   <div className="w-1.5 h-6 bg-emerald-500 rounded-full"></div> Distribuição de Macronutrientes
-                </h3>
-                <div className="h-[250px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={MACROS}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                      <XAxis dataKey="label" stroke="#475569" fontSize={11} tickLine={false} axisLine={false} />
-                      <YAxis stroke="#475569" fontSize={11} tickLine={false} axisLine={false} />
-                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }} />
-                      <Bar dataKey="percentage" name="Calorias %" fill="#10b981" radius={[8, 8, 0, 0]}>
-                        {MACROS.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-              
-              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-3xl p-8 shadow-xl relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
-                  <Sparkles className="w-24 h-24 text-emerald-500" />
-                </div>
-                <h3 className="text-emerald-500 font-black text-sm uppercase tracking-widest mb-6 flex items-center gap-3">
-                   <Info className="w-5 h-5" /> Regras de Ouro
-                </h3>
-                <ul className="space-y-4">
-                  {[
-                    "Proteína: 190-220g/dia para preservar massa",
-                    "Água: 3-4 litros por dia (essencial!)",
-                    "Sono: 7-8 horas garantem o resultado",
-                    "Mobilidade: 5-10 min antes de cada treino",
-                    "Paciência: O resultado natural é duradouro"
-                  ].map((tip, idx) => (
-                    <li key={idx} className="flex items-center gap-4 text-slate-200 text-sm font-medium">
-                      <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
-                      {tip}
-                    </li>
-                  ))}
-                </ul>
-                <button onClick={() => setActiveTab('treino')} className="w-full mt-8 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black py-4 rounded-2xl transition shadow-xl shadow-emerald-500/20 active:scale-[0.98] uppercase tracking-widest text-xs">
-                  Acessar Plano de Treino
-                </button>
-              </div>
             </div>
           </div>
         )}
@@ -616,64 +653,8 @@ const App: React.FC = () => {
                         );
                       })}
                     </div>
-
-                    {workout.cardio && (
-                      <div className="bg-gradient-to-r from-indigo-500/5 to-transparent border border-indigo-500/20 rounded-3xl p-6 flex items-center gap-6 shadow-lg shadow-indigo-500/5">
-                        <div className="w-14 h-14 bg-indigo-500/10 rounded-2xl flex items-center justify-center shrink-0 border border-indigo-500/20 shadow-inner">
-                          <Heart className="w-8 h-8 text-indigo-500 animate-pulse" />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="text-indigo-400 font-black text-xs uppercase tracking-[0.3em] mb-2">Treino Aeróbico - Queima de Gordura</h4>
-                          <div className="flex flex-wrap gap-x-8 gap-y-2">
-                            <div className="flex flex-col">
-                              <span className="text-[10px] text-slate-500 font-black tracking-widest">DURAÇÃO</span>
-                              <span className="text-white font-black text-lg">{workout.cardio.duration.toUpperCase()}</span>
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="text-[10px] text-slate-500 font-black tracking-widest">ZONA ALVO (FC)</span>
-                              <span className="text-white font-black text-lg">{workout.cardio.hr.toUpperCase()}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 ))}
-              </div>
-
-              <div className="p-10 bg-slate-900/50 border-t border-slate-800 flex justify-center">
-                 <button 
-                  onClick={saveWorkout}
-                  disabled={isSaving}
-                  className={`flex items-center justify-center gap-4 w-full sm:w-auto min-w-[320px] py-5 rounded-3xl font-black text-sm transition-all shadow-2xl active:scale-95 group overflow-hidden ${
-                    isSaving ? 'bg-slate-800 text-slate-500' : 'bg-emerald-500 hover:bg-emerald-600 text-slate-950 shadow-emerald-500/10'
-                  }`}
-                >
-                  <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-                  {isSaving ? (
-                    <>
-                      <div className="w-6 h-6 border-3 border-slate-500 border-t-transparent rounded-full animate-spin"></div>
-                      <span className="relative z-10 uppercase tracking-[0.2em]">Sincronizando...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Save className="w-6 h-6 group-hover:scale-125 group-hover:rotate-12 transition-all relative z-10" /> 
-                      <span className="relative z-10 uppercase tracking-[0.2em]">Finalizar e Registrar Treino</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-            
-            <div className="bg-slate-900 border border-slate-800 rounded-[2rem] p-8 flex items-start gap-6 shadow-xl">
-              <div className="p-4 bg-amber-500/10 rounded-2xl shrink-0 shadow-inner">
-                <History className="w-8 h-8 text-amber-500" />
-              </div>
-              <div>
-                <h3 className="text-white font-black text-base uppercase tracking-widest mb-2 italic">Acompanhe seu Progresso</h3>
-                <p className="text-slate-400 text-sm leading-relaxed max-w-2xl">
-                  Ao concluir cada exercício, ajuste os valores realizados. Clique no ícone de <History className="inline w-4 h-4 text-slate-500 mx-1" /> ao lado do nome do exercício para abrir o <strong className="text-emerald-500">gráfico de performance</strong> e comparar suas cargas anteriores. O botão "Salvar Treino" armazena esses dados permanentemente.
-                </p>
               </div>
             </div>
           </div>
@@ -695,29 +676,6 @@ const App: React.FC = () => {
                 <StrengthCard key={idx} record={record} />
               ))}
             </div>
-
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
-              <h3 className="text-white font-bold text-lg mb-6 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-emerald-500" /> Comparativo de Evolução Global
-              </h3>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={STRENGTH_PROGRESS}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                    <XAxis dataKey="exercise" stroke="#94a3b8" fontSize={11} tickLine={false} />
-                    <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
-                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b' }} />
-                    <Legend iconType="circle" />
-                    <Bar dataKey="initial" name="Carga Inicial (kg)" fill="#334155" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="current" name="Carga Atual (kg)" fill="#10b981" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="pb" name="Recorde PB (kg)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <p className="text-xs text-slate-500 mt-6 text-center italic">
-                * Os dados acima representam a evolução esperada e logs de desempenho para exercícios base.
-              </p>
-            </div>
           </div>
         )}
 
@@ -738,7 +696,6 @@ const App: React.FC = () => {
                        <div className="w-full h-1.5 bg-slate-800 rounded-full mt-4 overflow-hidden">
                           <div className="h-full transition-all duration-1000" style={{ width: macro.percentage, backgroundColor: macro.color }}></div>
                        </div>
-                       <span className="text-[10px] text-slate-500 mt-3 uppercase font-bold tracking-widest">{macro.percentage} DO TOTAL</span>
                     </div>
                   ))}
                 </div>
@@ -767,18 +724,6 @@ const App: React.FC = () => {
                    </div>
                 </div>
              </div>
-             
-             <div className="bg-amber-500/10 border border-amber-500/20 rounded-3xl p-6 flex gap-5">
-                <div className="w-12 h-12 bg-amber-500 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/10">
-                  <Utensils className="w-6 h-6 text-slate-950" />
-                </div>
-                <div>
-                  <h4 className="text-amber-500 font-black uppercase tracking-wider text-sm mb-1">Suplementação (Opcional)</h4>
-                  <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                    Whey Protein (30-40g pós-treino), Creatina (5g/dia constante), Ômega 3 (2g/dia com refeição) e Multivitamínico são excelentes aliados para garantir os micronutrientes e a síntese proteica.
-                  </p>
-                </div>
-             </div>
           </div>
         )}
 
@@ -796,7 +741,7 @@ const App: React.FC = () => {
                       {[
                         "Aquecer 10 min com mobilidade articular",
                         "Beber 3-4L de água (fundamental p/ rim e perda peso)",
-                        "Usar tênis com bom amortecimento (seus joelhos agradecem)",
+                        "Usar tênis com bom amortecimento",
                         "Respirar corretamente: solte o ar no esforço",
                         "Aumentar carga apenas se a técnica estiver perfeita"
                       ].map((text, idx) => (
@@ -817,8 +762,8 @@ const App: React.FC = () => {
                         "Agachamento livre (risco alto para 119kg no início)",
                         "Impacto excessivo: corrida em asfalto ou saltos",
                         "Treinar com dor articular: parou, descansou, gelo",
-                        "Cortar carboidratos a zero: você vai perder músculo",
-                        "Pular o aquecimento: risco alto de estiramento"
+                        "Cortar carboidratos a zero",
+                        "Pular o aquecimento"
                       ].map((text, idx) => (
                         <li key={idx} className="flex gap-4 text-slate-200 text-sm leading-snug">
                            <ChevronRight className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
@@ -826,24 +771,6 @@ const App: React.FC = () => {
                         </li>
                       ))}
                    </ul>
-                </div>
-             </div>
-
-             <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2rem] shadow-xl">
-                <h3 className="text-white font-black text-lg mb-6 uppercase tracking-tight">Sinais de Alerta</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                   <div className="p-5 bg-slate-800/50 rounded-2xl border border-slate-800">
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Dor Articular</p>
-                      <p className="text-sm text-slate-300 leading-relaxed">Se a dor persiste após o treino, reduza 50% da carga na próxima sessão e use gelo.</p>
-                   </div>
-                   <div className="p-5 bg-slate-800/50 rounded-2xl border border-slate-800">
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Fadiga Extrema</p>
-                      <p className="text-sm text-slate-300 leading-relaxed">Sono ruim e irritação constante? Adicione um dia extra de descanso total.</p>
-                   </div>
-                   <div className="p-5 bg-slate-800/50 rounded-2xl border border-slate-800">
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Tontura</p>
-                      <p className="text-sm text-slate-300 leading-relaxed">Pode ser hipoglicemia. Verifique se seu lanche pré-treino está sendo consumido.</p>
-                   </div>
                 </div>
              </div>
           </div>
