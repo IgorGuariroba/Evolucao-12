@@ -17,7 +17,10 @@ import {
   CheckCircle,
   History,
   X,
-  Clock
+  Clock,
+  Plus,
+  Minus,
+  Sparkles
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -161,6 +164,55 @@ const HistoryModal: React.FC<{
   </div>
 );
 
+// Interactive Stepper Component for Logs
+const StepperInput = ({ value, onChange, placeholder, step = 1, unit = "" }: { 
+  value: string, 
+  onChange: (val: string) => void, 
+  placeholder?: string,
+  step?: number,
+  unit?: string 
+}) => {
+  const numValue = parseFloat(value) || 0;
+  
+  const handleIncrement = () => {
+    onChange((numValue + step).toString());
+  };
+  
+  const handleDecrement = () => {
+    const next = Math.max(0, numValue - step);
+    onChange(next.toString());
+  };
+
+  return (
+    <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl overflow-hidden focus-within:border-emerald-500 transition-all h-11">
+      <button 
+        onClick={handleDecrement}
+        className="px-2 h-full hover:bg-slate-800 text-slate-500 hover:text-rose-500 transition-colors"
+      >
+        <Minus className="w-4 h-4" />
+      </button>
+      <div className="flex-1 relative flex items-center justify-center min-w-[60px]">
+        <input 
+          type="text"
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full h-full bg-transparent text-center text-emerald-400 font-bold text-sm focus:outline-none"
+        />
+        {unit && value && (
+          <span className="absolute right-1 text-[8px] text-slate-700 font-black uppercase pointer-events-none">{unit}</span>
+        )}
+      </div>
+      <button 
+        onClick={handleIncrement}
+        className="px-2 h-full hover:bg-slate-800 text-slate-500 hover:text-emerald-500 transition-colors"
+      >
+        <Plus className="w-4 h-4" />
+      </button>
+    </div>
+  );
+};
+
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'treino' | 'dieta' | 'progresso' | 'seguranca'>('dashboard');
   const [activePhase, setActivePhase] = useState<Phase>(PHASES[0]);
@@ -203,6 +255,7 @@ const App: React.FC = () => {
   };
 
   const saveWorkout = () => {
+    if (isSaving) return;
     setIsSaving(true);
     
     // Save current "status quo" for fields
@@ -210,24 +263,21 @@ const App: React.FC = () => {
     
     // Also append to history for each exercise that has data
     const newHistory = { ...historyLogs };
-    const dateStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }) + ' ' + 
+                    now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     
-    // Fix: Explicitly cast entry to LogEntry to avoid 'unknown' type inference in Object.entries
     Object.entries(logs).forEach(([name, entry]) => {
       const logEntry = entry as LogEntry;
-      // Only record in history if some value was actually provided
       if (logEntry.load || logEntry.reps || logEntry.sets) {
         if (!newHistory[name]) newHistory[name] = [];
         
-        // Prevent duplicate saves of identical data in a short time if needed, 
-        // but for simplicity, we just add a new record.
         newHistory[name].push({
           ...logEntry,
           date: dateStr
         });
         
-        // Keep only last 10 entries per exercise to save space
-        if (newHistory[name].length > 10) {
+        if (newHistory[name].length > 15) {
           newHistory[name].shift();
         }
       }
@@ -236,15 +286,27 @@ const App: React.FC = () => {
     localStorage.setItem('workout_history_12s', JSON.stringify(newHistory));
     setHistoryLogs(newHistory);
 
+    // Visual feedback delay
     setTimeout(() => {
       setIsSaving(false);
       setShowSaveFeedback(true);
       setTimeout(() => setShowSaveFeedback(false), 3000);
-    }, 800);
+    }, 1200);
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 pb-24">
+    <div className="min-h-screen bg-slate-950 pb-24 selection:bg-emerald-500/30">
+      {/* Toast Notification */}
+      {showSaveFeedback && (
+        <div className="fixed top-20 right-4 z-[110] animate-in slide-in-from-right fade-in duration-300">
+          <div className="bg-emerald-500 text-slate-950 px-6 py-3 rounded-2xl font-black text-sm flex items-center gap-3 shadow-2xl shadow-emerald-500/20">
+            <CheckCircle className="w-5 h-5" />
+            <span>Treino salvo com sucesso!</span>
+            <Sparkles className="w-4 h-4" />
+          </div>
+        </div>
+      )}
+
       {/* History Modal Overlay */}
       {viewingHistory && (
         <HistoryModal 
@@ -258,7 +320,7 @@ const App: React.FC = () => {
       <header className="bg-slate-900/50 backdrop-blur-md border-b border-slate-800 sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/10">
               <Dumbbell className="text-white w-6 h-6" />
             </div>
             <div>
@@ -267,11 +329,11 @@ const App: React.FC = () => {
             </div>
           </div>
           <div className="hidden lg:flex gap-6">
-            <button onClick={() => setActiveTab('dashboard')} className={`text-sm font-semibold transition ${activeTab === 'dashboard' ? 'text-emerald-500' : 'text-slate-400 hover:text-white'}`}>Dashboard</button>
-            <button onClick={() => setActiveTab('treino')} className={`text-sm font-semibold transition ${activeTab === 'treino' ? 'text-emerald-500' : 'text-slate-400 hover:text-white'}`}>Treino</button>
-            <button onClick={() => setActiveTab('progresso')} className={`text-sm font-semibold transition ${activeTab === 'progresso' ? 'text-emerald-500' : 'text-slate-400 hover:text-white'}`}>Progresso</button>
-            <button onClick={() => setActiveTab('dieta')} className={`text-sm font-semibold transition ${activeTab === 'dieta' ? 'text-emerald-500' : 'text-slate-400 hover:text-white'}`}>Dieta</button>
-            <button onClick={() => setActiveTab('seguranca')} className={`text-sm font-semibold transition ${activeTab === 'seguranca' ? 'text-emerald-500' : 'text-slate-400 hover:text-white'}`}>Segurança</button>
+            <button onClick={() => setActiveTab('dashboard')} className={`text-sm font-bold transition ${activeTab === 'dashboard' ? 'text-emerald-500' : 'text-slate-400 hover:text-white'}`}>Dashboard</button>
+            <button onClick={() => setActiveTab('treino')} className={`text-sm font-bold transition ${activeTab === 'treino' ? 'text-emerald-500' : 'text-slate-400 hover:text-white'}`}>Treino</button>
+            <button onClick={() => setActiveTab('progresso')} className={`text-sm font-bold transition ${activeTab === 'progresso' ? 'text-emerald-500' : 'text-slate-400 hover:text-white'}`}>Progresso</button>
+            <button onClick={() => setActiveTab('dieta')} className={`text-sm font-bold transition ${activeTab === 'dieta' ? 'text-emerald-500' : 'text-slate-400 hover:text-white'}`}>Dieta</button>
+            <button onClick={() => setActiveTab('seguranca')} className={`text-sm font-bold transition ${activeTab === 'seguranca' ? 'text-emerald-500' : 'text-slate-400 hover:text-white'}`}>Segurança</button>
           </div>
         </div>
       </header>
@@ -344,7 +406,7 @@ const App: React.FC = () => {
                     </li>
                   ))}
                 </ul>
-                <button onClick={() => setActiveTab('treino')} className="w-full mt-6 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition">
+                <button onClick={() => setActiveTab('treino')} className="w-full mt-6 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-emerald-500/10 active:scale-[0.98]">
                   Ver Plano de Treino Completo
                 </button>
               </div>
@@ -360,7 +422,7 @@ const App: React.FC = () => {
                 <button
                   key={phase.id}
                   onClick={() => setActivePhase(phase)}
-                  className={`flex-1 py-3 rounded-xl text-sm font-bold transition flex flex-col items-center ${activePhase.id === phase.id ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+                  className={`flex-1 py-3 rounded-xl text-sm font-bold transition flex flex-col items-center ${activePhase.id === phase.id ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/10' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
                 >
                   Fase {phase.id}
                   <span className={`text-[10px] uppercase tracking-wider ${activePhase.id === phase.id ? 'text-emerald-100' : 'text-slate-500'}`}>{phase.weeks}</span>
@@ -368,21 +430,30 @@ const App: React.FC = () => {
               ))}
             </div>
 
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
               <div className="p-6 border-b border-slate-800 bg-emerald-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-black text-white uppercase tracking-tight">{activePhase.name}</h2>
                   <p className="text-emerald-500 font-semibold text-sm mt-1">{activePhase.frequency}</p>
                   <p className="mt-2 text-slate-400 text-xs leading-relaxed max-w-xl"><strong className="text-slate-200">Objetivo:</strong> {activePhase.objective}</p>
                 </div>
-                <div className="flex flex-col items-end gap-2">
-                  <div className="bg-emerald-500 text-slate-950 text-[10px] font-black px-3 py-1 rounded-full uppercase">Semanas {activePhase.weeks}</div>
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  <div className="bg-emerald-500 text-slate-950 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Semanas {activePhase.weeks}</div>
                   <button 
                     onClick={saveWorkout}
                     disabled={isSaving}
-                    className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-700 text-slate-950 font-black text-xs px-4 py-2 rounded-xl transition-all shadow-lg active:scale-95"
+                    className={`relative flex items-center justify-center gap-2 w-full sm:w-auto min-w-[140px] h-11 px-6 rounded-xl font-black text-xs transition-all shadow-lg active:scale-95 ${
+                      isSaving ? 'bg-slate-700 text-slate-400' : 'bg-emerald-500 hover:bg-emerald-600 text-slate-950'
+                    }`}
                   >
-                    {isSaving ? 'Salvando...' : showSaveFeedback ? <span className="flex items-center gap-1 text-white"><CheckCircle className="w-4 h-4" /> Salvo</span> : <><Save className="w-4 h-4" /> Salvar Treino</>}
+                    {isSaving ? (
+                      <div className="w-5 h-5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" /> 
+                        <span>SALVAR TREINO</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -390,15 +461,18 @@ const App: React.FC = () => {
               <div className="p-0 sm:p-6 space-y-12">
                 {activePhase.workouts.map((workout, wIdx) => (
                   <div key={wIdx} className="space-y-4 px-4 sm:px-0">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-lg font-black text-white flex items-center gap-2">
                         <Dumbbell className="w-5 h-5 text-emerald-500" /> {workout.title}
                       </h3>
-                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Duração: ~{workout.duration}</span>
+                      <div className="flex items-center gap-2 text-slate-500">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider">~{workout.duration}</span>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 gap-4">
-                      <div className="hidden sm:grid grid-cols-12 gap-4 px-4 py-2 text-[10px] font-black uppercase text-slate-500 tracking-widest border-b border-slate-800">
+                      <div className="hidden sm:grid grid-cols-12 gap-4 px-4 py-2 text-[10px] font-black uppercase text-slate-600 tracking-widest border-b border-slate-800">
                         <div className="col-span-4">Exercício / Planejado</div>
                         <div className="col-span-2 text-center">Séries</div>
                         <div className="col-span-3 text-center">Reps</div>
@@ -408,58 +482,53 @@ const App: React.FC = () => {
                       {workout.exercises.map((ex, exIdx) => {
                         const log = logs[ex.name] || { sets: '', reps: '', load: '' };
                         return (
-                          <div key={exIdx} className="bg-slate-900/40 border border-slate-800/60 rounded-2xl p-4 sm:grid sm:grid-cols-12 sm:items-center gap-4 hover:border-emerald-500/20 transition group relative">
+                          <div key={exIdx} className="bg-slate-900/40 border border-slate-800/60 rounded-2xl p-5 sm:grid sm:grid-cols-12 sm:items-center gap-4 hover:border-emerald-500/20 transition group relative shadow-sm">
                             <div className="col-span-4 mb-4 sm:mb-0 pr-10 sm:pr-0">
                               <div className="flex items-center gap-2">
                                 <h4 className="text-sm font-bold text-white group-hover:text-emerald-400 transition-colors">{ex.name}</h4>
                                 <button 
                                   onClick={() => setViewingHistory(ex.name)}
-                                  className="sm:opacity-0 group-hover:opacity-100 p-1.5 hover:bg-slate-800 rounded-lg text-slate-500 hover:text-emerald-500 transition-all active:scale-90"
+                                  className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-600 hover:text-emerald-500 transition-all active:scale-90"
                                   title="Ver Histórico"
                                 >
                                   <History className="w-3.5 h-3.5" />
                                 </button>
                               </div>
-                              <div className="flex gap-2 mt-1">
-                                <span className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono">Plan: {ex.sets}x{ex.reps} @ {ex.load}</span>
-                                {ex.obs && <span className="text-[9px] text-emerald-600 font-bold uppercase tracking-tighter">{ex.obs}</span>}
+                              <div className="flex flex-wrap gap-2 mt-1.5">
+                                <span className="text-[9px] bg-slate-800 text-slate-500 px-2 py-0.5 rounded-full font-bold">OBJ: {ex.sets}x{ex.reps} @ {ex.load}</span>
+                                {ex.obs && <span className="text-[9px] text-emerald-600/80 font-black uppercase tracking-tighter">{ex.obs}</span>}
                               </div>
                             </div>
                             
-                            <div className="col-span-2 flex sm:block items-center justify-between gap-2 mb-2 sm:mb-0">
-                              <label className="sm:hidden text-[9px] font-black text-slate-600 uppercase">Séries</label>
-                              <input 
-                                type="text"
-                                placeholder={ex.sets.toString()}
+                            <div className="col-span-2 flex sm:block items-center justify-between gap-4 mb-3 sm:mb-0">
+                              <label className="sm:hidden text-[9px] font-black text-slate-600 uppercase tracking-widest">Séries</label>
+                              <StepperInput 
                                 value={log.sets}
-                                onChange={(e) => handleLogChange(ex.name, 'sets', e.target.value)}
-                                className="w-full sm:w-16 h-10 bg-slate-950 border border-slate-800 rounded-lg text-center text-emerald-400 font-bold text-sm focus:border-emerald-500 focus:outline-none transition-all"
+                                onChange={(val) => handleLogChange(ex.name, 'sets', val)}
+                                placeholder={ex.sets.toString()}
+                                step={1}
                               />
                             </div>
 
-                            <div className="col-span-3 flex sm:block items-center justify-between gap-2 mb-2 sm:mb-0">
-                              <label className="sm:hidden text-[9px] font-black text-slate-600 uppercase">Reps</label>
-                              <input 
-                                type="text"
-                                placeholder={ex.reps}
+                            <div className="col-span-3 flex sm:block items-center justify-between gap-4 mb-3 sm:mb-0">
+                              <label className="sm:hidden text-[9px] font-black text-slate-600 uppercase tracking-widest">Repetições</label>
+                              <StepperInput 
                                 value={log.reps}
-                                onChange={(e) => handleLogChange(ex.name, 'reps', e.target.value)}
-                                className="w-full h-10 bg-slate-950 border border-slate-800 rounded-lg text-center text-emerald-400 font-bold text-sm focus:border-emerald-500 focus:outline-none transition-all"
+                                onChange={(val) => handleLogChange(ex.name, 'reps', val)}
+                                placeholder={ex.reps}
+                                step={1}
                               />
                             </div>
 
-                            <div className="col-span-3 flex sm:block items-center justify-between gap-2">
-                              <label className="sm:hidden text-[9px] font-black text-slate-600 uppercase">Carga (kg)</label>
-                              <div className="relative w-full">
-                                <input 
-                                  type="text"
-                                  placeholder="0"
-                                  value={log.load}
-                                  onChange={(e) => handleLogChange(ex.name, 'load', e.target.value)}
-                                  className="w-full h-10 bg-slate-950 border border-slate-800 rounded-lg text-center text-emerald-400 font-bold text-sm focus:border-emerald-500 focus:outline-none transition-all"
-                                />
-                                <span className="absolute right-3 top-2.5 text-[10px] text-slate-700 font-bold">KG</span>
-                              </div>
+                            <div className="col-span-3 flex sm:block items-center justify-between gap-4">
+                              <label className="sm:hidden text-[9px] font-black text-slate-600 uppercase tracking-widest">Carga</label>
+                              <StepperInput 
+                                value={log.load}
+                                onChange={(val) => handleLogChange(ex.name, 'load', val)}
+                                placeholder="0"
+                                step={2.5}
+                                unit="KG"
+                              />
                             </div>
                           </div>
                         );
@@ -467,15 +536,15 @@ const App: React.FC = () => {
                     </div>
 
                     {workout.cardio && (
-                      <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4 flex items-center gap-4">
-                        <div className="w-12 h-12 bg-indigo-500/20 rounded-full flex items-center justify-center shrink-0">
+                      <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-5 flex items-center gap-5">
+                        <div className="w-12 h-12 bg-indigo-500/20 rounded-2xl flex items-center justify-center shrink-0">
                           <Heart className="w-6 h-6 text-indigo-400" />
                         </div>
                         <div className="flex-1">
-                          <h4 className="text-indigo-400 font-bold text-xs uppercase tracking-widest">Metabolismo Ativo</h4>
-                          <div className="flex flex-wrap gap-4 mt-1">
-                            <span className="text-[10px] text-slate-300 font-medium uppercase">Tempo: <b className="text-white">{workout.cardio.duration}</b></span>
-                            <span className="text-[10px] text-slate-300 font-medium uppercase">Alvo: <b className="text-white">{workout.cardio.hr}</b></span>
+                          <h4 className="text-indigo-400 font-black text-[10px] uppercase tracking-[0.2em] mb-1">Metabolismo Ativo</h4>
+                          <div className="flex flex-wrap gap-x-6 gap-y-1">
+                            <span className="text-[11px] text-slate-300 font-medium">TEMPO: <b className="text-white ml-1">{workout.cardio.duration}</b></span>
+                            <span className="text-[11px] text-slate-300 font-medium uppercase">ALVO: <b className="text-white ml-1">{workout.cardio.hr}</b></span>
                           </div>
                         </div>
                       </div>
@@ -484,25 +553,37 @@ const App: React.FC = () => {
                 ))}
               </div>
 
-              <div className="p-6 bg-slate-800/20 border-t border-slate-800 flex justify-center">
+              <div className="p-8 bg-slate-900/50 border-t border-slate-800 flex justify-center">
                  <button 
                   onClick={saveWorkout}
                   disabled={isSaving}
-                  className="flex items-center gap-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-700 text-slate-950 font-black text-sm px-12 py-4 rounded-2xl transition-all shadow-xl active:scale-95 group"
+                  className={`flex items-center justify-center gap-3 w-full sm:w-auto min-w-[280px] py-4 rounded-2xl font-black text-sm transition-all shadow-xl active:scale-95 group ${
+                    isSaving ? 'bg-slate-700 text-slate-500' : 'bg-emerald-500 hover:bg-emerald-600 text-slate-950 shadow-emerald-500/10'
+                  }`}
                 >
-                  {isSaving ? 'Processando...' : showSaveFeedback ? <span className="flex items-center gap-2 text-white"><CheckCircle className="w-5 h-5" /> Salvo com Sucesso!</span> : <><Save className="w-5 h-5 group-hover:scale-110 transition" /> Salvar Logs de Treino</>}
+                  {isSaving ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-slate-500 border-t-transparent rounded-full animate-spin"></div>
+                      <span>PROCESSANDO...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-5 h-5 group-hover:scale-110 transition" /> 
+                      <span>SALVAR TREINO COMPLETADO</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
             
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex items-start gap-4">
-              <div className="p-3 bg-amber-500/10 rounded-xl">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 flex items-start gap-4">
+              <div className="p-3 bg-amber-500/10 rounded-2xl shrink-0">
                 <History className="w-6 h-6 text-amber-500" />
               </div>
               <div>
-                <h3 className="text-white font-bold mb-1">Dica de Acompanhamento</h3>
+                <h3 className="text-white font-black text-sm uppercase tracking-wider mb-1">Dica de Acompanhamento</h3>
                 <p className="text-slate-400 text-xs leading-relaxed">
-                  Clique no ícone de relógio <History className="inline w-3 h-3 text-slate-500" /> ao lado do nome do exercício para ver sua <strong className="text-emerald-500">progressão histórica</strong>. Ao salvar o treino, os dados são arquivados para comparação futura.
+                  Utilize os botões <Plus className="inline w-3 h-3 text-slate-500 mx-0.5" /> e <Minus className="inline w-3 h-3 text-slate-500 mx-0.5" /> para ajustar rapidamente seu desempenho. Clique no ícone de relógio <History className="inline w-3 h-3 text-slate-500" /> para visualizar sua <strong className="text-emerald-500">evolução histórica</strong> em cada exercício.
                 </p>
               </div>
             </div>
@@ -554,41 +635,41 @@ const App: React.FC = () => {
         {/* DIETA */}
         {activeTab === 'dieta' && (
           <div className="space-y-8 animate-in slide-in-from-left duration-500">
-             <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden">
-                <div className="p-6 border-b border-slate-800">
-                  <h2 className="text-2xl font-black text-white uppercase">Planejamento Nutricional</h2>
+             <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
+                <div className="p-6 border-b border-slate-800 bg-emerald-500/5">
+                  <h2 className="text-2xl font-black text-white uppercase tracking-tight">Planejamento Nutricional</h2>
                   <p className="text-slate-400 text-sm mt-1">Calculado para déficit sustentável e alta ingestão de proteínas.</p>
                 </div>
                 
                 <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
                   {MACROS.map((macro, idx) => (
-                    <div key={idx} className="bg-slate-800/30 border border-slate-800 rounded-2xl p-4 flex flex-col items-center text-center">
-                       <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">{macro.label}</span>
-                       <span className="text-2xl font-black text-white">{macro.amount}</span>
-                       <div className="w-full h-1 bg-slate-800 rounded-full mt-3 overflow-hidden">
-                          <div className="h-full" style={{ width: macro.percentage, backgroundColor: macro.color }}></div>
+                    <div key={idx} className="bg-slate-800/30 border border-slate-800 rounded-2xl p-5 flex flex-col items-center text-center group hover:border-emerald-500/20 transition-all">
+                       <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">{macro.label}</span>
+                       <span className="text-2xl font-black text-white group-hover:text-emerald-400 transition-colors">{macro.amount}</span>
+                       <div className="w-full h-1.5 bg-slate-800 rounded-full mt-4 overflow-hidden">
+                          <div className="h-full transition-all duration-1000" style={{ width: macro.percentage, backgroundColor: macro.color }}></div>
                        </div>
-                       <span className="text-[10px] text-slate-500 mt-2 uppercase font-bold">{macro.percentage} do total</span>
+                       <span className="text-[10px] text-slate-500 mt-3 uppercase font-bold tracking-widest">{macro.percentage} DO TOTAL</span>
                     </div>
                   ))}
                 </div>
 
                 <div className="p-6 space-y-6">
-                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                   <h3 className="text-lg font-black text-white flex items-center gap-2 uppercase tracking-tight">
                       <Utensils className="w-5 h-5 text-emerald-500" /> Divisão Sugerida de Refeições
                    </h3>
                    <div className="space-y-4">
                       {MEALS.map((meal, idx) => (
-                        <div key={idx} className="group bg-slate-800/20 border border-slate-800 p-5 rounded-2xl hover:border-emerald-500/30 transition">
-                           <div className="flex justify-between items-center mb-3">
-                              <h4 className="text-white font-bold">{meal.title}</h4>
-                              <span className="bg-slate-800 text-slate-400 text-[10px] px-2 py-0.5 rounded font-bold">{meal.percentage} kcal</span>
+                        <div key={idx} className="group bg-slate-800/20 border border-slate-800 p-6 rounded-3xl hover:border-emerald-500/30 transition-all">
+                           <div className="flex justify-between items-center mb-4">
+                              <h4 className="text-white font-black uppercase tracking-wider text-sm">{meal.title}</h4>
+                              <span className="bg-slate-800 text-slate-400 text-[10px] px-3 py-1 rounded-full font-black tracking-widest uppercase">{meal.percentage} KCAL</span>
                            </div>
-                           <ul className="space-y-2">
+                           <ul className="space-y-3">
                               {meal.options.map((opt, oIdx) => (
                                 <li key={oIdx} className="text-slate-400 text-sm flex gap-3">
-                                   <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full mt-1.5 shrink-0"></div>
-                                   {opt}
+                                   <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full mt-1.5 shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+                                   <span className="leading-snug">{opt}</span>
                                 </li>
                               ))}
                            </ul>
@@ -598,13 +679,13 @@ const App: React.FC = () => {
                 </div>
              </div>
              
-             <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-6 flex gap-4">
-                <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center shrink-0">
-                  <Utensils className="w-6 h-6 text-white" />
+             <div className="bg-amber-500/10 border border-amber-500/20 rounded-3xl p-6 flex gap-5">
+                <div className="w-12 h-12 bg-amber-500 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/10">
+                  <Utensils className="w-6 h-6 text-slate-950" />
                 </div>
                 <div>
-                  <h4 className="text-amber-500 font-bold">Suplementação (Opcional)</h4>
-                  <p className="text-slate-400 text-sm mt-1 leading-relaxed">
+                  <h4 className="text-amber-500 font-black uppercase tracking-wider text-sm mb-1">Suplementação (Opcional)</h4>
+                  <p className="text-slate-400 text-xs mt-1 leading-relaxed">
                     Whey Protein (30-40g pós-treino), Creatina (5g/dia constante), Ômega 3 (2g/dia com refeição) e Multivitamínico são excelentes aliados para garantir os micronutrientes e a síntese proteica.
                   </p>
                 </div>
@@ -618,11 +699,11 @@ const App: React.FC = () => {
              <SectionTitle icon={AlertTriangle}>Cuidados Essenciais</SectionTitle>
              
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-emerald-500/10 border border-emerald-500/30 p-6 rounded-3xl">
-                   <h3 className="text-emerald-500 font-black text-xl mb-4 flex items-center gap-2">
+                <div className="bg-emerald-500/10 border border-emerald-500/30 p-8 rounded-[2rem]">
+                   <h3 className="text-emerald-500 font-black text-xl mb-6 flex items-center gap-3">
                       <CheckCircle2 className="w-6 h-6" /> FAÇA SEMPRE
                    </h3>
-                   <ul className="space-y-4">
+                   <ul className="space-y-5">
                       {[
                         "Aquecer 10 min com mobilidade articular",
                         "Beber 3-4L de água (fundamental p/ rim e perda peso)",
@@ -630,19 +711,19 @@ const App: React.FC = () => {
                         "Respirar corretamente: solte o ar no esforço",
                         "Aumentar carga apenas se a técnica estiver perfeita"
                       ].map((text, idx) => (
-                        <li key={idx} className="flex gap-3 text-slate-200 text-sm leading-snug">
-                           <ChevronRight className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-                           {text}
+                        <li key={idx} className="flex gap-4 text-slate-200 text-sm leading-snug">
+                           <ChevronRight className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                           <span>{text}</span>
                         </li>
                       ))}
                    </ul>
                 </div>
 
-                <div className="bg-rose-500/10 border border-rose-500/30 p-6 rounded-3xl">
-                   <h3 className="text-rose-500 font-black text-xl mb-4 flex items-center gap-2">
+                <div className="bg-rose-500/10 border border-rose-500/30 p-8 rounded-[2rem]">
+                   <h3 className="text-rose-500 font-black text-xl mb-6 flex items-center gap-3">
                       <AlertTriangle className="w-6 h-6" /> EVITE AO MÁXIMO
                    </h3>
-                   <ul className="space-y-4">
+                   <ul className="space-y-5">
                       {[
                         "Agachamento livre (risco alto para 119kg no início)",
                         "Impacto excessivo: corrida em asfalto ou saltos",
@@ -650,29 +731,29 @@ const App: React.FC = () => {
                         "Cortar carboidratos a zero: você vai perder músculo",
                         "Pular o aquecimento: risco alto de estiramento"
                       ].map((text, idx) => (
-                        <li key={idx} className="flex gap-3 text-slate-200 text-sm leading-snug">
-                           <ChevronRight className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                           {text}
+                        <li key={idx} className="flex gap-4 text-slate-200 text-sm leading-snug">
+                           <ChevronRight className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+                           <span>{text}</span>
                         </li>
                       ))}
                    </ul>
                 </div>
              </div>
 
-             <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl">
-                <h3 className="text-white font-bold text-lg mb-4">Sinais de Alerta</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                   <div className="p-4 bg-slate-800/50 rounded-2xl">
-                      <p className="text-xs font-bold text-slate-500 uppercase mb-1">Dor Articular</p>
-                      <p className="text-sm text-slate-300">Se a dor persiste após o treino, reduza 50% da carga na próxima sessão.</p>
+             <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2rem] shadow-xl">
+                <h3 className="text-white font-black text-lg mb-6 uppercase tracking-tight">Sinais de Alerta</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                   <div className="p-5 bg-slate-800/50 rounded-2xl border border-slate-800">
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Dor Articular</p>
+                      <p className="text-sm text-slate-300 leading-relaxed">Se a dor persiste após o treino, reduza 50% da carga na próxima sessão e use gelo.</p>
                    </div>
-                   <div className="p-4 bg-slate-800/50 rounded-2xl">
-                      <p className="text-xs font-bold text-slate-500 uppercase mb-1">Fadiga Extrema</p>
-                      <p className="text-sm text-slate-300">Sono ruim e irritação? Adicione um dia extra de descanso (Rest Day).</p>
+                   <div className="p-5 bg-slate-800/50 rounded-2xl border border-slate-800">
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Fadiga Extrema</p>
+                      <p className="text-sm text-slate-300 leading-relaxed">Sono ruim e irritação constante? Adicione um dia extra de descanso total.</p>
                    </div>
-                   <div className="p-4 bg-slate-800/50 rounded-2xl">
-                      <p className="text-xs font-bold text-slate-500 uppercase mb-1">Tontura</p>
-                      <p className="text-sm text-slate-300">Pode ser hipoglicemia ou desidratação. Verifique seu lanche pré-treino.</p>
+                   <div className="p-5 bg-slate-800/50 rounded-2xl border border-slate-800">
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Tontura</p>
+                      <p className="text-sm text-slate-300 leading-relaxed">Pode ser hipoglicemia. Verifique se seu lanche pré-treino está sendo consumido.</p>
                    </div>
                 </div>
              </div>
@@ -681,27 +762,27 @@ const App: React.FC = () => {
       </main>
 
       {/* Mobile Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 p-2 z-50">
+      <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-lg border-t border-slate-800 p-3 z-50">
         <div className="flex justify-around items-center max-w-6xl mx-auto px-2">
-          <button onClick={() => setActiveTab('dashboard')} className={`flex flex-col items-center p-2 rounded-xl transition ${activeTab === 'dashboard' ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-500'}`}>
+          <button onClick={() => setActiveTab('dashboard')} className={`flex flex-col items-center p-2.5 rounded-2xl transition-all duration-300 ${activeTab === 'dashboard' ? 'bg-emerald-500 text-slate-950 scale-105 shadow-lg shadow-emerald-500/20' : 'text-slate-500'}`}>
             <TrendingUp className="w-5 h-5" />
-            <span className="text-[9px] font-bold mt-1 uppercase">Dashboard</span>
+            <span className="text-[9px] font-black mt-1.5 uppercase tracking-tighter">Resumo</span>
           </button>
-          <button onClick={() => setActiveTab('treino')} className={`flex flex-col items-center p-2 rounded-xl transition ${activeTab === 'treino' ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-500'}`}>
+          <button onClick={() => setActiveTab('treino')} className={`flex flex-col items-center p-2.5 rounded-2xl transition-all duration-300 ${activeTab === 'treino' ? 'bg-emerald-500 text-slate-950 scale-105 shadow-lg shadow-emerald-500/20' : 'text-slate-500'}`}>
             <Dumbbell className="w-5 h-5" />
-            <span className="text-[9px] font-bold mt-1 uppercase">Treino</span>
+            <span className="text-[9px] font-black mt-1.5 uppercase tracking-tighter">Treino</span>
           </button>
-          <button onClick={() => setActiveTab('progresso')} className={`flex flex-col items-center p-2 rounded-xl transition ${activeTab === 'progresso' ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-500'}`}>
+          <button onClick={() => setActiveTab('progresso')} className={`flex flex-col items-center p-2.5 rounded-2xl transition-all duration-300 ${activeTab === 'progresso' ? 'bg-emerald-500 text-slate-950 scale-105 shadow-lg shadow-emerald-500/20' : 'text-slate-500'}`}>
             <Trophy className="w-5 h-5" />
-            <span className="text-[9px] font-bold mt-1 uppercase">Força</span>
+            <span className="text-[9px] font-black mt-1.5 uppercase tracking-tighter">Evoluir</span>
           </button>
-          <button onClick={() => setActiveTab('dieta')} className={`flex flex-col items-center p-2 rounded-xl transition ${activeTab === 'dieta' ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-500'}`}>
+          <button onClick={() => setActiveTab('dieta')} className={`flex flex-col items-center p-2.5 rounded-2xl transition-all duration-300 ${activeTab === 'dieta' ? 'bg-emerald-500 text-slate-950 scale-105 shadow-lg shadow-emerald-500/20' : 'text-slate-500'}`}>
             <Utensils className="w-5 h-5" />
-            <span className="text-[9px] font-bold mt-1 uppercase">Dieta</span>
+            <span className="text-[9px] font-black mt-1.5 uppercase tracking-tighter">Dieta</span>
           </button>
-          <button onClick={() => setActiveTab('seguranca')} className={`hidden sm:flex flex-col items-center p-2 rounded-xl transition ${activeTab === 'seguranca' ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-500'}`}>
+          <button onClick={() => setActiveTab('seguranca')} className={`flex sm:flex flex-col items-center p-2.5 rounded-2xl transition-all duration-300 ${activeTab === 'seguranca' ? 'bg-emerald-500 text-slate-950 scale-105 shadow-lg shadow-emerald-500/20' : 'text-slate-500'}`}>
             <AlertTriangle className="w-5 h-5" />
-            <span className="text-[9px] font-bold mt-1 uppercase">Segurança</span>
+            <span className="text-[9px] font-black mt-1.5 uppercase tracking-tighter">Dicas</span>
           </button>
         </div>
       </nav>
