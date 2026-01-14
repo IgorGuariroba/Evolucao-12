@@ -1,0 +1,12 @@
+
+/* Arquivo base para evitar erros de carregamento do navegador */
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
