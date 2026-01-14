@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Dumbbell, 
   Utensils, 
@@ -20,7 +20,9 @@ import {
   Clock,
   Plus,
   Minus,
-  Sparkles
+  Sparkles,
+  TrendingDown,
+  Activity
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -108,61 +110,123 @@ const HistoryModal: React.FC<{
   exerciseName: string, 
   history: HistoricalEntry[], 
   onClose: () => void 
-}> = ({ exerciseName, history, onClose }) => (
-  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-300">
-    <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
-      <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
-        <div>
-          <h3 className="text-xl font-black text-white uppercase tracking-tight">{exerciseName}</h3>
-          <p className="text-emerald-500 text-[10px] font-bold uppercase tracking-widest mt-1">Histórico de Performance</p>
+}> = ({ exerciseName, history, onClose }) => {
+  const chartData = useMemo(() => {
+    return history.map(h => ({
+      date: h.date.split(' ')[0],
+      weight: parseFloat(h.load) || 0
+    }));
+  }, [history]);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-300">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
+        <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+          <div>
+            <h3 className="text-xl font-black text-white uppercase tracking-tight">{exerciseName}</h3>
+            <p className="text-emerald-500 text-[10px] font-bold uppercase tracking-widest mt-1 flex items-center gap-1">
+              <Activity className="w-3 h-3" /> Histórico de Evolução
+            </p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-xl transition text-slate-400">
+            <X className="w-6 h-6" />
+          </button>
         </div>
-        <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-xl transition text-slate-400">
-          <X className="w-6 h-6" />
-        </button>
-      </div>
-      <div className="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
-        {history.length === 0 ? (
-          <div className="py-12 text-center">
-            <Clock className="w-12 h-12 text-slate-700 mx-auto mb-4" />
-            <p className="text-slate-500 text-sm font-medium italic">Nenhum registro encontrado ainda.</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {[...history].reverse().map((entry, idx) => (
-              <div key={idx} className="bg-slate-800/30 border border-slate-800/60 p-4 rounded-2xl flex items-center justify-between group hover:border-emerald-500/30 transition-all">
-                <div className="flex flex-col">
-                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter mb-1">{entry.date}</span>
-                  <div className="flex gap-4">
-                    <div className="flex flex-col">
-                      <span className="text-[9px] text-slate-600 font-black uppercase">Séries</span>
-                      <span className="text-white font-bold">{entry.sets || '-'}</span>
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-[9px] text-slate-600 font-black uppercase">Reps</span>
-                      <span className="text-white font-bold">{entry.reps || '-'}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="text-[9px] text-emerald-600 font-black uppercase block mb-1">Carga</span>
-                  <span className="text-2xl font-black text-emerald-500">{entry.load || '0'}<span className="text-xs ml-0.5">kg</span></span>
-                </div>
+
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-8">
+          {history.length > 1 && (
+            <div className="bg-slate-950 border border-slate-800 p-4 rounded-2xl h-48 w-full shadow-inner">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient id="loadGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }}
+                    labelStyle={{ color: '#94a3b8', fontSize: '10px', fontWeight: 'bold' }}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="weight" 
+                    stroke="#10b981" 
+                    strokeWidth={3} 
+                    fillOpacity={1} 
+                    fill="url(#loadGradient)" 
+                    dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#0f172a' }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <h4 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] px-1">Registros Anteriores</h4>
+            {history.length === 0 ? (
+              <div className="py-12 text-center bg-slate-800/20 rounded-2xl border border-dashed border-slate-800">
+                <Clock className="w-12 h-12 text-slate-800 mx-auto mb-4" />
+                <p className="text-slate-500 text-sm font-medium italic">Nenhum treino registrado ainda.</p>
               </div>
-            ))}
+            ) : (
+              <div className="space-y-3">
+                {[...history].reverse().map((entry, idx, arr) => {
+                  const prevEntry = arr[idx + 1];
+                  const currentLoad = parseFloat(entry.load) || 0;
+                  const prevLoad = prevEntry ? parseFloat(prevEntry.load) || 0 : currentLoad;
+                  const delta = currentLoad - prevLoad;
+
+                  return (
+                    <div key={idx} className="bg-slate-800/30 border border-slate-800/60 p-5 rounded-2xl flex items-center justify-between group hover:border-emerald-500/40 transition-all hover:bg-slate-800/50">
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] bg-slate-900 text-slate-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-tighter">{entry.date}</span>
+                          {delta !== 0 && (
+                            <span className={`text-[9px] font-black flex items-center gap-0.5 px-1.5 py-0.5 rounded-full ${delta > 0 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                              {delta > 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
+                              {delta > 0 ? `+${delta}` : delta}kg
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex gap-6">
+                          <div className="flex flex-col">
+                            <span className="text-[9px] text-slate-600 font-black uppercase tracking-widest">Séries</span>
+                            <span className="text-white font-bold">{entry.sets || '-'}</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[9px] text-slate-600 font-black uppercase tracking-widest">Reps</span>
+                            <span className="text-white font-bold">{entry.reps || '-'}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[9px] text-emerald-600 font-black uppercase block mb-1 tracking-widest">Carga Final</span>
+                        <div className="flex items-baseline justify-end">
+                          <span className="text-3xl font-black text-emerald-500 tracking-tighter">{entry.load || '0'}</span>
+                          <span className="text-xs text-emerald-600 font-black ml-1">KG</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
-      </div>
-      <div className="p-4 bg-slate-900/50 border-t border-slate-800">
-        <button 
-          onClick={onClose}
-          className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition uppercase text-xs tracking-widest"
-        >
-          Fechar
-        </button>
+        </div>
+
+        <div className="p-4 bg-slate-900/50 border-t border-slate-800">
+          <button 
+            onClick={onClose}
+            className="w-full bg-slate-800 hover:bg-slate-700 text-white font-black py-4 rounded-2xl transition uppercase text-xs tracking-[0.2em] shadow-lg active:scale-95"
+          >
+            Fechar Janela
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 // Interactive Stepper Component for Logs
 const StepperInput = ({ value, onChange, placeholder, step = 1, unit = "" }: { 
@@ -184,10 +248,10 @@ const StepperInput = ({ value, onChange, placeholder, step = 1, unit = "" }: {
   };
 
   return (
-    <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl overflow-hidden focus-within:border-emerald-500 transition-all h-11">
+    <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl overflow-hidden focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all h-11 shadow-inner">
       <button 
         onClick={handleDecrement}
-        className="px-2 h-full hover:bg-slate-800 text-slate-500 hover:text-rose-500 transition-colors"
+        className="px-3 h-full hover:bg-slate-900 text-slate-600 hover:text-rose-500 transition-colors active:bg-rose-500/10"
       >
         <Minus className="w-4 h-4" />
       </button>
@@ -197,7 +261,7 @@ const StepperInput = ({ value, onChange, placeholder, step = 1, unit = "" }: {
           placeholder={placeholder}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full h-full bg-transparent text-center text-emerald-400 font-bold text-sm focus:outline-none"
+          className="w-full h-full bg-transparent text-center text-emerald-400 font-bold text-sm focus:outline-none placeholder:text-slate-700"
         />
         {unit && value && (
           <span className="absolute right-1 text-[8px] text-slate-700 font-black uppercase pointer-events-none">{unit}</span>
@@ -205,7 +269,7 @@ const StepperInput = ({ value, onChange, placeholder, step = 1, unit = "" }: {
       </div>
       <button 
         onClick={handleIncrement}
-        className="px-2 h-full hover:bg-slate-800 text-slate-500 hover:text-emerald-500 transition-colors"
+        className="px-3 h-full hover:bg-slate-900 text-slate-600 hover:text-emerald-500 transition-colors active:bg-emerald-500/10"
       >
         <Plus className="w-4 h-4" />
       </button>
@@ -264,7 +328,7 @@ const App: React.FC = () => {
     // Also append to history for each exercise that has data
     const newHistory = { ...historyLogs };
     const now = new Date();
-    const dateStr = now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }) + ' ' + 
+    const dateStr = now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + 
                     now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     
     Object.entries(logs).forEach(([name, entry]) => {
@@ -272,12 +336,13 @@ const App: React.FC = () => {
       if (logEntry.load || logEntry.reps || logEntry.sets) {
         if (!newHistory[name]) newHistory[name] = [];
         
+        // Push only if significantly different or if last entry is old
         newHistory[name].push({
           ...logEntry,
           date: dateStr
         });
         
-        if (newHistory[name].length > 15) {
+        if (newHistory[name].length > 20) {
           newHistory[name].shift();
         }
       }
@@ -295,7 +360,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 pb-24 selection:bg-emerald-500/30">
+    <div className="min-h-screen bg-slate-950 pb-24 selection:bg-emerald-500/30 overflow-x-hidden">
       {/* Toast Notification */}
       {showSaveFeedback && (
         <div className="fixed top-20 right-4 z-[110] animate-in slide-in-from-right fade-in duration-300">
@@ -319,21 +384,21 @@ const App: React.FC = () => {
       {/* Header */}
       <header className="bg-slate-900/50 backdrop-blur-md border-b border-slate-800 sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/10">
-              <Dumbbell className="text-white w-6 h-6" />
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 group hover:rotate-6 transition-transform">
+              <Dumbbell className="text-white w-6 h-6 group-hover:scale-110 transition-transform" />
             </div>
             <div>
-              <h1 className="text-lg font-extrabold text-white leading-none uppercase tracking-tighter">Evolução 12s</h1>
+              <h1 className="text-lg font-black text-white leading-none uppercase tracking-tighter">Evolução 12s</h1>
               <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-[0.2em]">Natural Fitness</span>
             </div>
           </div>
-          <div className="hidden lg:flex gap-6">
-            <button onClick={() => setActiveTab('dashboard')} className={`text-sm font-bold transition ${activeTab === 'dashboard' ? 'text-emerald-500' : 'text-slate-400 hover:text-white'}`}>Dashboard</button>
-            <button onClick={() => setActiveTab('treino')} className={`text-sm font-bold transition ${activeTab === 'treino' ? 'text-emerald-500' : 'text-slate-400 hover:text-white'}`}>Treino</button>
-            <button onClick={() => setActiveTab('progresso')} className={`text-sm font-bold transition ${activeTab === 'progresso' ? 'text-emerald-500' : 'text-slate-400 hover:text-white'}`}>Progresso</button>
-            <button onClick={() => setActiveTab('dieta')} className={`text-sm font-bold transition ${activeTab === 'dieta' ? 'text-emerald-500' : 'text-slate-400 hover:text-white'}`}>Dieta</button>
-            <button onClick={() => setActiveTab('seguranca')} className={`text-sm font-bold transition ${activeTab === 'seguranca' ? 'text-emerald-500' : 'text-slate-400 hover:text-white'}`}>Segurança</button>
+          <div className="hidden lg:flex gap-8">
+            <button onClick={() => setActiveTab('dashboard')} className={`text-sm font-black uppercase tracking-widest transition-all ${activeTab === 'dashboard' ? 'text-emerald-500' : 'text-slate-500 hover:text-white'}`}>Resumo</button>
+            <button onClick={() => setActiveTab('treino')} className={`text-sm font-black uppercase tracking-widest transition-all ${activeTab === 'treino' ? 'text-emerald-500' : 'text-slate-500 hover:text-white'}`}>Treino</button>
+            <button onClick={() => setActiveTab('progresso')} className={`text-sm font-black uppercase tracking-widest transition-all ${activeTab === 'progresso' ? 'text-emerald-500' : 'text-slate-500 hover:text-white'}`}>Evolução</button>
+            <button onClick={() => setActiveTab('dieta')} className={`text-sm font-black uppercase tracking-widest transition-all ${activeTab === 'dieta' ? 'text-emerald-500' : 'text-slate-500 hover:text-white'}`}>Dieta</button>
+            <button onClick={() => setActiveTab('seguranca')} className={`text-sm font-black uppercase tracking-widest transition-all ${activeTab === 'seguranca' ? 'text-emerald-500' : 'text-slate-500 hover:text-white'}`}>Dicas</button>
           </div>
         </div>
       </header>
@@ -351,34 +416,46 @@ const App: React.FC = () => {
             </div>
 
             <SectionTitle icon={TrendingUp}>Previsão de Resultados</SectionTitle>
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 h-[400px]">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 h-[400px] shadow-2xl">
                <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={CHART_DATA}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                  <XAxis dataKey="week" stroke="#94a3b8" />
-                  <YAxis yAxisId="left" stroke="#10b981" />
-                  <YAxis yAxisId="right" orientation="right" stroke="#3b82f6" />
-                  <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b' }} />
-                  <Legend />
-                  <Line yAxisId="left" type="monotone" dataKey="weight" name="Peso (kg)" stroke="#10b981" strokeWidth={3} dot={{ r: 6 }} />
-                  <Line yAxisId="right" type="monotone" dataKey="bf" name="Gordura (%)" stroke="#3b82f6" strokeWidth={3} dot={{ r: 6 }} />
-                </LineChart>
+                <AreaChart data={CHART_DATA}>
+                  <defs>
+                    <linearGradient id="weightGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="bfGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                  <XAxis dataKey="week" stroke="#475569" fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis yAxisId="left" stroke="#10b981" fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis yAxisId="right" orientation="right" stroke="#3b82f6" fontSize={11} tickLine={false} axisLine={false} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '16px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }} 
+                  />
+                  <Legend verticalAlign="top" height={36}/>
+                  <Area yAxisId="left" type="monotone" dataKey="weight" name="Peso (kg)" stroke="#10b981" strokeWidth={4} fill="url(#weightGrad)" dot={{ r: 6, fill: '#10b981' }} />
+                  <Area yAxisId="right" type="monotone" dataKey="bf" name="Gordura (%)" stroke="#3b82f6" strokeWidth={4} fill="url(#bfGrad)" dot={{ r: 6, fill: '#3b82f6' }} />
+                </AreaChart>
               </ResponsiveContainer>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-                <h3 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
-                   <Utensils className="w-5 h-5 text-emerald-500" /> Distribuição de Macros
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl">
+                <h3 className="text-white font-black text-sm uppercase tracking-widest mb-6 flex items-center gap-3">
+                   <div className="w-1.5 h-6 bg-emerald-500 rounded-full"></div> Distribuição de Macronutrientes
                 </h3>
                 <div className="h-[250px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={MACROS}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                      <XAxis dataKey="label" stroke="#94a3b8" />
-                      <YAxis stroke="#94a3b8" />
-                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b' }} />
-                      <Bar dataKey="percentage" name="Calorias %" fill="#10b981">
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                      <XAxis dataKey="label" stroke="#475569" fontSize={11} tickLine={false} axisLine={false} />
+                      <YAxis stroke="#475569" fontSize={11} tickLine={false} axisLine={false} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }} />
+                      <Bar dataKey="percentage" name="Calorias %" fill="#10b981" radius={[8, 8, 0, 0]}>
                         {MACROS.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
@@ -388,26 +465,29 @@ const App: React.FC = () => {
                 </div>
               </div>
               
-              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-6">
-                <h3 className="text-emerald-500 font-bold text-lg mb-4 flex items-center gap-2">
-                   <Info className="w-5 h-5" /> Principais Recomendações
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-3xl p-8 shadow-xl relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
+                  <Sparkles className="w-24 h-24 text-emerald-500" />
+                </div>
+                <h3 className="text-emerald-500 font-black text-sm uppercase tracking-widest mb-6 flex items-center gap-3">
+                   <Info className="w-5 h-5" /> Regras de Ouro
                 </h3>
-                <ul className="space-y-3">
+                <ul className="space-y-4">
                   {[
                     "Proteína: 190-220g/dia para preservar massa",
-                    "Água: 3-4 litros por dia",
-                    "Sono: 7-8 horas essenciais para recuperação",
-                    "Aqueça sempre 5-10 min antes do treino",
-                    "Não use cargas extremas nos joelhos no início"
+                    "Água: 3-4 litros por dia (essencial!)",
+                    "Sono: 7-8 horas garantem o resultado",
+                    "Mobilidade: 5-10 min antes de cada treino",
+                    "Paciência: O resultado natural é duradouro"
                   ].map((tip, idx) => (
-                    <li key={idx} className="flex items-center gap-3 text-slate-300 text-sm">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <li key={idx} className="flex items-center gap-4 text-slate-200 text-sm font-medium">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
                       {tip}
                     </li>
                   ))}
                 </ul>
-                <button onClick={() => setActiveTab('treino')} className="w-full mt-6 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-emerald-500/10 active:scale-[0.98]">
-                  Ver Plano de Treino Completo
+                <button onClick={() => setActiveTab('treino')} className="w-full mt-8 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black py-4 rounded-2xl transition shadow-xl shadow-emerald-500/20 active:scale-[0.98] uppercase tracking-widest text-xs">
+                  Acessar Plano de Treino
                 </button>
               </div>
             </div>
@@ -422,86 +502,88 @@ const App: React.FC = () => {
                 <button
                   key={phase.id}
                   onClick={() => setActivePhase(phase)}
-                  className={`flex-1 py-3 rounded-xl text-sm font-bold transition flex flex-col items-center ${activePhase.id === phase.id ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/10' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+                  className={`flex-1 py-4 rounded-xl text-sm font-black transition-all flex flex-col items-center uppercase tracking-widest ${activePhase.id === phase.id ? 'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20' : 'text-slate-500 hover:bg-slate-800 hover:text-white'}`}
                 >
                   Fase {phase.id}
-                  <span className={`text-[10px] uppercase tracking-wider ${activePhase.id === phase.id ? 'text-emerald-100' : 'text-slate-500'}`}>{phase.weeks}</span>
+                  <span className={`text-[10px] mt-0.5 tracking-[0.2em] font-bold ${activePhase.id === phase.id ? 'text-slate-800' : 'text-slate-600'}`}>Semanas {phase.weeks}</span>
                 </button>
               ))}
             </div>
 
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
-              <div className="p-6 border-b border-slate-800 bg-emerald-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-black text-white uppercase tracking-tight">{activePhase.name}</h2>
-                  <p className="text-emerald-500 font-semibold text-sm mt-1">{activePhase.frequency}</p>
-                  <p className="mt-2 text-slate-400 text-xs leading-relaxed max-w-xl"><strong className="text-slate-200">Objetivo:</strong> {activePhase.objective}</p>
+            <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
+              <div className="p-8 border-b border-slate-800 bg-emerald-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                <div className="max-w-xl">
+                  <h2 className="text-3xl font-black text-white uppercase tracking-tight italic">{activePhase.name}</h2>
+                  <p className="text-emerald-500 font-black text-xs uppercase tracking-[0.3em] mt-2">{activePhase.frequency}</p>
+                  <p className="mt-4 text-slate-400 text-sm leading-relaxed"><strong className="text-slate-200 uppercase text-[10px] tracking-widest mr-2 underline decoration-emerald-500 decoration-2">Meta:</strong> {activePhase.objective}</p>
                 </div>
-                <div className="flex flex-col items-end gap-2 shrink-0">
-                  <div className="bg-emerald-500 text-slate-950 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Semanas {activePhase.weeks}</div>
+                <div className="flex flex-col items-end gap-3 shrink-0">
+                  <div className="bg-emerald-500 text-slate-950 text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-[0.2em] shadow-lg shadow-emerald-500/10">Semanas {activePhase.weeks}</div>
                   <button 
                     onClick={saveWorkout}
                     disabled={isSaving}
-                    className={`relative flex items-center justify-center gap-2 w-full sm:w-auto min-w-[140px] h-11 px-6 rounded-xl font-black text-xs transition-all shadow-lg active:scale-95 ${
-                      isSaving ? 'bg-slate-700 text-slate-400' : 'bg-emerald-500 hover:bg-emerald-600 text-slate-950'
+                    className={`relative flex items-center justify-center gap-3 w-full sm:w-auto min-w-[160px] h-12 px-6 rounded-2xl font-black text-xs transition-all shadow-xl active:scale-95 group ${
+                      isSaving ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-emerald-500 hover:bg-emerald-600 text-slate-950'
                     }`}
                   >
                     {isSaving ? (
-                      <div className="w-5 h-5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
+                      <div className="w-5 h-5 border-3 border-slate-500 border-t-transparent rounded-full animate-spin"></div>
                     ) : (
                       <>
-                        <Save className="w-4 h-4" /> 
-                        <span>SALVAR TREINO</span>
+                        <Save className="w-4 h-4 group-hover:rotate-12 transition-transform" /> 
+                        <span className="tracking-widest">SALVAR TREINO</span>
                       </>
                     )}
                   </button>
                 </div>
               </div>
 
-              <div className="p-0 sm:p-6 space-y-12">
+              <div className="p-0 sm:p-8 space-y-16">
                 {activePhase.workouts.map((workout, wIdx) => (
-                  <div key={wIdx} className="space-y-4 px-4 sm:px-0">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-lg font-black text-white flex items-center gap-2">
-                        <Dumbbell className="w-5 h-5 text-emerald-500" /> {workout.title}
-                      </h3>
-                      <div className="flex items-center gap-2 text-slate-500">
-                        <Clock className="w-3.5 h-3.5" />
-                        <span className="text-[10px] font-bold uppercase tracking-wider">~{workout.duration}</span>
+                  <div key={wIdx} className="space-y-6 px-4 sm:px-0 animate-in fade-in slide-in-from-bottom-4 duration-700" style={{ animationDelay: `${wIdx * 100}ms` }}>
+                    <div className="flex items-center justify-between border-l-4 border-emerald-500 pl-4 py-1">
+                      <div>
+                        <h3 className="text-xl font-black text-white flex items-center gap-3 italic">
+                          <Dumbbell className="w-6 h-6 text-emerald-500" /> {workout.title.toUpperCase()}
+                        </h3>
+                      </div>
+                      <div className="flex items-center gap-3 text-slate-500 bg-slate-950/50 px-4 py-1.5 rounded-full border border-slate-800">
+                        <Clock className="w-4 h-4 text-emerald-500" />
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em]">~{workout.duration}</span>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-4">
-                      <div className="hidden sm:grid grid-cols-12 gap-4 px-4 py-2 text-[10px] font-black uppercase text-slate-600 tracking-widest border-b border-slate-800">
-                        <div className="col-span-4">Exercício / Planejado</div>
+                    <div className="grid grid-cols-1 gap-5">
+                      <div className="hidden sm:grid grid-cols-12 gap-4 px-6 py-2 text-[10px] font-black uppercase text-slate-600 tracking-[0.3em] border-b border-slate-800">
+                        <div className="col-span-4">Exercício / Plano</div>
                         <div className="col-span-2 text-center">Séries</div>
-                        <div className="col-span-3 text-center">Reps</div>
+                        <div className="col-span-3 text-center">Repetições</div>
                         <div className="col-span-3 text-center">Carga (kg)</div>
                       </div>
 
                       {workout.exercises.map((ex, exIdx) => {
                         const log = logs[ex.name] || { sets: '', reps: '', load: '' };
                         return (
-                          <div key={exIdx} className="bg-slate-900/40 border border-slate-800/60 rounded-2xl p-5 sm:grid sm:grid-cols-12 sm:items-center gap-4 hover:border-emerald-500/20 transition group relative shadow-sm">
-                            <div className="col-span-4 mb-4 sm:mb-0 pr-10 sm:pr-0">
-                              <div className="flex items-center gap-2">
-                                <h4 className="text-sm font-bold text-white group-hover:text-emerald-400 transition-colors">{ex.name}</h4>
+                          <div key={exIdx} className="bg-slate-900/40 border border-slate-800/60 rounded-3xl p-6 sm:grid sm:grid-cols-12 sm:items-center gap-6 hover:border-emerald-500/30 transition-all group relative shadow-lg hover:shadow-emerald-500/5">
+                            <div className="col-span-4 mb-5 sm:mb-0 pr-12 sm:pr-0">
+                              <div className="flex items-center gap-3">
+                                <h4 className="text-base font-black text-white group-hover:text-emerald-400 transition-colors tracking-tight">{ex.name}</h4>
                                 <button 
                                   onClick={() => setViewingHistory(ex.name)}
-                                  className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-600 hover:text-emerald-500 transition-all active:scale-90"
-                                  title="Ver Histórico"
+                                  className="p-2 bg-slate-800/50 hover:bg-emerald-500/10 rounded-xl text-slate-500 hover:text-emerald-500 transition-all active:scale-90"
+                                  title="Ver Histórico de Performance"
                                 >
-                                  <History className="w-3.5 h-3.5" />
+                                  <History className="w-4 h-4" />
                                 </button>
                               </div>
-                              <div className="flex flex-wrap gap-2 mt-1.5">
-                                <span className="text-[9px] bg-slate-800 text-slate-500 px-2 py-0.5 rounded-full font-bold">OBJ: {ex.sets}x{ex.reps} @ {ex.load}</span>
-                                {ex.obs && <span className="text-[9px] text-emerald-600/80 font-black uppercase tracking-tighter">{ex.obs}</span>}
+                              <div className="flex flex-wrap gap-2 mt-2.5">
+                                <span className="text-[10px] bg-slate-950 border border-slate-800 text-slate-500 px-3 py-1 rounded-full font-black tracking-widest">OBJ: {ex.sets}x{ex.reps} @ {ex.load}</span>
+                                {ex.obs && <span className="text-[10px] text-emerald-600/60 font-black uppercase tracking-tighter self-center italic">{ex.obs}</span>}
                               </div>
                             </div>
                             
-                            <div className="col-span-2 flex sm:block items-center justify-between gap-4 mb-3 sm:mb-0">
-                              <label className="sm:hidden text-[9px] font-black text-slate-600 uppercase tracking-widest">Séries</label>
+                            <div className="col-span-2 flex sm:block items-center justify-between gap-4 mb-4 sm:mb-0">
+                              <label className="sm:hidden text-[10px] font-black text-slate-600 uppercase tracking-widest">Séries</label>
                               <StepperInput 
                                 value={log.sets}
                                 onChange={(val) => handleLogChange(ex.name, 'sets', val)}
@@ -510,8 +592,8 @@ const App: React.FC = () => {
                               />
                             </div>
 
-                            <div className="col-span-3 flex sm:block items-center justify-between gap-4 mb-3 sm:mb-0">
-                              <label className="sm:hidden text-[9px] font-black text-slate-600 uppercase tracking-widest">Repetições</label>
+                            <div className="col-span-3 flex sm:block items-center justify-between gap-4 mb-4 sm:mb-0">
+                              <label className="sm:hidden text-[10px] font-black text-slate-600 uppercase tracking-widest">Repetições</label>
                               <StepperInput 
                                 value={log.reps}
                                 onChange={(val) => handleLogChange(ex.name, 'reps', val)}
@@ -521,7 +603,7 @@ const App: React.FC = () => {
                             </div>
 
                             <div className="col-span-3 flex sm:block items-center justify-between gap-4">
-                              <label className="sm:hidden text-[9px] font-black text-slate-600 uppercase tracking-widest">Carga</label>
+                              <label className="sm:hidden text-[10px] font-black text-slate-600 uppercase tracking-widest">Carga</label>
                               <StepperInput 
                                 value={log.load}
                                 onChange={(val) => handleLogChange(ex.name, 'load', val)}
@@ -536,15 +618,21 @@ const App: React.FC = () => {
                     </div>
 
                     {workout.cardio && (
-                      <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-5 flex items-center gap-5">
-                        <div className="w-12 h-12 bg-indigo-500/20 rounded-2xl flex items-center justify-center shrink-0">
-                          <Heart className="w-6 h-6 text-indigo-400" />
+                      <div className="bg-gradient-to-r from-indigo-500/5 to-transparent border border-indigo-500/20 rounded-3xl p-6 flex items-center gap-6 shadow-lg shadow-indigo-500/5">
+                        <div className="w-14 h-14 bg-indigo-500/10 rounded-2xl flex items-center justify-center shrink-0 border border-indigo-500/20 shadow-inner">
+                          <Heart className="w-8 h-8 text-indigo-500 animate-pulse" />
                         </div>
                         <div className="flex-1">
-                          <h4 className="text-indigo-400 font-black text-[10px] uppercase tracking-[0.2em] mb-1">Metabolismo Ativo</h4>
-                          <div className="flex flex-wrap gap-x-6 gap-y-1">
-                            <span className="text-[11px] text-slate-300 font-medium">TEMPO: <b className="text-white ml-1">{workout.cardio.duration}</b></span>
-                            <span className="text-[11px] text-slate-300 font-medium uppercase">ALVO: <b className="text-white ml-1">{workout.cardio.hr}</b></span>
+                          <h4 className="text-indigo-400 font-black text-xs uppercase tracking-[0.3em] mb-2">Treino Aeróbico - Queima de Gordura</h4>
+                          <div className="flex flex-wrap gap-x-8 gap-y-2">
+                            <div className="flex flex-col">
+                              <span className="text-[10px] text-slate-500 font-black tracking-widest">DURAÇÃO</span>
+                              <span className="text-white font-black text-lg">{workout.cardio.duration.toUpperCase()}</span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-[10px] text-slate-500 font-black tracking-widest">ZONA ALVO (FC)</span>
+                              <span className="text-white font-black text-lg">{workout.cardio.hr.toUpperCase()}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -553,37 +641,38 @@ const App: React.FC = () => {
                 ))}
               </div>
 
-              <div className="p-8 bg-slate-900/50 border-t border-slate-800 flex justify-center">
+              <div className="p-10 bg-slate-900/50 border-t border-slate-800 flex justify-center">
                  <button 
                   onClick={saveWorkout}
                   disabled={isSaving}
-                  className={`flex items-center justify-center gap-3 w-full sm:w-auto min-w-[280px] py-4 rounded-2xl font-black text-sm transition-all shadow-xl active:scale-95 group ${
-                    isSaving ? 'bg-slate-700 text-slate-500' : 'bg-emerald-500 hover:bg-emerald-600 text-slate-950 shadow-emerald-500/10'
+                  className={`flex items-center justify-center gap-4 w-full sm:w-auto min-w-[320px] py-5 rounded-3xl font-black text-sm transition-all shadow-2xl active:scale-95 group overflow-hidden ${
+                    isSaving ? 'bg-slate-800 text-slate-500' : 'bg-emerald-500 hover:bg-emerald-600 text-slate-950 shadow-emerald-500/10'
                   }`}
                 >
+                  <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
                   {isSaving ? (
                     <>
-                      <div className="w-5 h-5 border-2 border-slate-500 border-t-transparent rounded-full animate-spin"></div>
-                      <span>PROCESSANDO...</span>
+                      <div className="w-6 h-6 border-3 border-slate-500 border-t-transparent rounded-full animate-spin"></div>
+                      <span className="relative z-10 uppercase tracking-[0.2em]">Sincronizando...</span>
                     </>
                   ) : (
                     <>
-                      <Save className="w-5 h-5 group-hover:scale-110 transition" /> 
-                      <span>SALVAR TREINO COMPLETADO</span>
+                      <Save className="w-6 h-6 group-hover:scale-125 group-hover:rotate-12 transition-all relative z-10" /> 
+                      <span className="relative z-10 uppercase tracking-[0.2em]">Finalizar e Registrar Treino</span>
                     </>
                   )}
                 </button>
               </div>
             </div>
             
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 flex items-start gap-4">
-              <div className="p-3 bg-amber-500/10 rounded-2xl shrink-0">
-                <History className="w-6 h-6 text-amber-500" />
+            <div className="bg-slate-900 border border-slate-800 rounded-[2rem] p-8 flex items-start gap-6 shadow-xl">
+              <div className="p-4 bg-amber-500/10 rounded-2xl shrink-0 shadow-inner">
+                <History className="w-8 h-8 text-amber-500" />
               </div>
               <div>
-                <h3 className="text-white font-black text-sm uppercase tracking-wider mb-1">Dica de Acompanhamento</h3>
-                <p className="text-slate-400 text-xs leading-relaxed">
-                  Utilize os botões <Plus className="inline w-3 h-3 text-slate-500 mx-0.5" /> e <Minus className="inline w-3 h-3 text-slate-500 mx-0.5" /> para ajustar rapidamente seu desempenho. Clique no ícone de relógio <History className="inline w-3 h-3 text-slate-500" /> para visualizar sua <strong className="text-emerald-500">evolução histórica</strong> em cada exercício.
+                <h3 className="text-white font-black text-base uppercase tracking-widest mb-2 italic">Acompanhe seu Progresso</h3>
+                <p className="text-slate-400 text-sm leading-relaxed max-w-2xl">
+                  Ao concluir cada exercício, ajuste os valores realizados. Clique no ícone de <History className="inline w-4 h-4 text-slate-500 mx-1" /> ao lado do nome do exercício para abrir o <strong className="text-emerald-500">gráfico de performance</strong> e comparar suas cargas anteriores. O botão "Salvar Treino" armazena esses dados permanentemente.
                 </p>
               </div>
             </div>
@@ -762,27 +851,27 @@ const App: React.FC = () => {
       </main>
 
       {/* Mobile Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-lg border-t border-slate-800 p-3 z-50">
+      <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-xl border-t border-slate-800 p-3.5 z-50">
         <div className="flex justify-around items-center max-w-6xl mx-auto px-2">
-          <button onClick={() => setActiveTab('dashboard')} className={`flex flex-col items-center p-2.5 rounded-2xl transition-all duration-300 ${activeTab === 'dashboard' ? 'bg-emerald-500 text-slate-950 scale-105 shadow-lg shadow-emerald-500/20' : 'text-slate-500'}`}>
+          <button onClick={() => setActiveTab('dashboard')} className={`flex flex-col items-center p-2.5 rounded-2xl transition-all duration-300 ${activeTab === 'dashboard' ? 'bg-emerald-500 text-slate-950 scale-110 shadow-lg shadow-emerald-500/20' : 'text-slate-500 hover:text-slate-300'}`}>
             <TrendingUp className="w-5 h-5" />
-            <span className="text-[9px] font-black mt-1.5 uppercase tracking-tighter">Resumo</span>
+            <span className="text-[9px] font-black mt-1.5 uppercase tracking-widest">Resumo</span>
           </button>
-          <button onClick={() => setActiveTab('treino')} className={`flex flex-col items-center p-2.5 rounded-2xl transition-all duration-300 ${activeTab === 'treino' ? 'bg-emerald-500 text-slate-950 scale-105 shadow-lg shadow-emerald-500/20' : 'text-slate-500'}`}>
+          <button onClick={() => setActiveTab('treino')} className={`flex flex-col items-center p-2.5 rounded-2xl transition-all duration-300 ${activeTab === 'treino' ? 'bg-emerald-500 text-slate-950 scale-110 shadow-lg shadow-emerald-500/20' : 'text-slate-500 hover:text-slate-300'}`}>
             <Dumbbell className="w-5 h-5" />
-            <span className="text-[9px] font-black mt-1.5 uppercase tracking-tighter">Treino</span>
+            <span className="text-[9px] font-black mt-1.5 uppercase tracking-widest">Treino</span>
           </button>
-          <button onClick={() => setActiveTab('progresso')} className={`flex flex-col items-center p-2.5 rounded-2xl transition-all duration-300 ${activeTab === 'progresso' ? 'bg-emerald-500 text-slate-950 scale-105 shadow-lg shadow-emerald-500/20' : 'text-slate-500'}`}>
+          <button onClick={() => setActiveTab('progresso')} className={`flex flex-col items-center p-2.5 rounded-2xl transition-all duration-300 ${activeTab === 'progresso' ? 'bg-emerald-500 text-slate-950 scale-110 shadow-lg shadow-emerald-500/20' : 'text-slate-500 hover:text-slate-300'}`}>
             <Trophy className="w-5 h-5" />
-            <span className="text-[9px] font-black mt-1.5 uppercase tracking-tighter">Evoluir</span>
+            <span className="text-[9px] font-black mt-1.5 uppercase tracking-widest">Evoluir</span>
           </button>
-          <button onClick={() => setActiveTab('dieta')} className={`flex flex-col items-center p-2.5 rounded-2xl transition-all duration-300 ${activeTab === 'dieta' ? 'bg-emerald-500 text-slate-950 scale-105 shadow-lg shadow-emerald-500/20' : 'text-slate-500'}`}>
+          <button onClick={() => setActiveTab('dieta')} className={`flex flex-col items-center p-2.5 rounded-2xl transition-all duration-300 ${activeTab === 'dieta' ? 'bg-emerald-500 text-slate-950 scale-110 shadow-lg shadow-emerald-500/20' : 'text-slate-500 hover:text-slate-300'}`}>
             <Utensils className="w-5 h-5" />
-            <span className="text-[9px] font-black mt-1.5 uppercase tracking-tighter">Dieta</span>
+            <span className="text-[9px] font-black mt-1.5 uppercase tracking-widest">Dieta</span>
           </button>
-          <button onClick={() => setActiveTab('seguranca')} className={`flex sm:flex flex-col items-center p-2.5 rounded-2xl transition-all duration-300 ${activeTab === 'seguranca' ? 'bg-emerald-500 text-slate-950 scale-105 shadow-lg shadow-emerald-500/20' : 'text-slate-500'}`}>
+          <button onClick={() => setActiveTab('seguranca')} className={`flex sm:flex flex-col items-center p-2.5 rounded-2xl transition-all duration-300 ${activeTab === 'seguranca' ? 'bg-emerald-500 text-slate-950 scale-110 shadow-lg shadow-emerald-500/20' : 'text-slate-500 hover:text-slate-300'}`}>
             <AlertTriangle className="w-5 h-5" />
-            <span className="text-[9px] font-black mt-1.5 uppercase tracking-tighter">Dicas</span>
+            <span className="text-[9px] font-black mt-1.5 uppercase tracking-widest">Dicas</span>
           </button>
         </div>
       </nav>
