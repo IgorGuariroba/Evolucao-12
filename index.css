@@ -1,12 +1,6 @@
 
-/* Arquivo base para evitar erros de carregamento do navegador */
-:root {
-  color-scheme: dark;
-}
-
+/* Arquivo presente apenas para evitar erros de 404/MIME type no servidor.
+   Os estilos principais estão no index.html ou via Tailwind CDN. */
 body {
-  margin: 0;
-  padding: 0;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  background-color: #020617;
 }
